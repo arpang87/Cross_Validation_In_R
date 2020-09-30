@@ -1,0 +1,170 @@
+---
+title: "Crossvalidation for Machine Learning in R"
+author: "Arpan"
+date: "January 4, 2017"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+Crossvalidation is a technique which gives the  insight on how the model will generalize to an unknown or unseen dataset(test data set) by reducing the problems like overfitting.
+
+A model is usually given a known data set(training data set) on which training is done and unknown dataset(testing data set) against which the model is tested. 
+
+
+Holdout method :  The data set is partitioned into two parts, one is called the training set and other is the testing set.Then the model predicts the target variable for the testing data.
+
+K-fold cross validation : The data set is divided into k subsets. Each time, one of the k subsets is used as the test set and the other k-1 subsets alltogether forms our training set. Then the average error across all k trials is computed.That means in K-fold cross-validation model is fitted K times and also tested K-times against the left-out subset of data.
+
+Leave-one-out cross validation :It's a K-fold cross validation where K is equal to the number of data points in the set(i.e number of rows).That implies the model will be fitted N number of times where N is equal to number of rows.So if the number of rows is very large then this method will run many times and so it is very computationally expensive.
+
+
+Summary:
+1.In holdout method: We test the model only one time and that's also against one same subset of whole data set.Ofcourse you can choose subset according to your choice but its best to choose randomly.  
+2.K-fold crossvalidation:In this model runs K times .
+      a.If K=1 then that is same as holdout method.
+      b.If K=N(number of rows in data) then that is same as 		    Leave-one-out crossvalidaton.
+3.Choosing the best number of folds depends on data size,keeping in mind about computational expenses,etc.
+4. Lower K 
+
+	a.computationally cheaper, 
+	b.less error due to variance
+	c.more error due to bias(model mismatch).       
+
+Higher K 
+
+	a.more expensive
+	b.more error due to variance
+	c.lower error due to bias(model mismatch).
+
+How to reduce Variance without increasing bias?
+Repeat the cross-validation with the same K but different random folds and then averaging the results but cons is that this is even more expensive. 
+
+
+Now let's have a look on how to do  crossvalidation in R using the package caret.
+
+Setting the seed so that we get the same results each time we run the model 
+```{r }
+set.seed(123)
+```
+
+Importing the library MASS for iris dataset and library caret for crossvalidation
+
+```{r}
+library(MASS,quietly = TRUE)
+library(caret)
+```
+
+Storing the data set named "iris" into DataFrame named "DataFrame"
+```{r}
+DataFrame <- iris
+```
+
+Type help("iris") to know about the data set 
+```{r}
+help("iris")
+```
+
+Lets check out the structure of the data 
+```{r}
+str(DataFrame)
+```
+
+Check the dimension of this data frame
+```{r}
+dim(DataFrame)
+```
+
+Check first 3 rows
+```{r}
+head(DataFrame,3)
+```
+
+Check the summary of data 
+```{r}
+summary(DataFrame)
+```
+
+Check the number of unique values 
+```{r}
+apply(DataFrame,2,function(x) length(unique(x)))
+```
+
+Lets check the data set again
+```{r}
+str(DataFrame)
+```
+
+Lets create the train and test data set.Target variable is Species
+```{r}
+library(caTools)
+library(caret)
+ind = createDataPartition(DataFrame$Species, p = 2/3, list = FALSE)
+trainDF<-DataFrame[ind,]
+testDF<-DataFrame[-ind,]
+```
+
+We will be using the caret package for crossvalidation.Function named train in caret package is used for crossvalidation.
+Let's choose the paramters for the train function in caret
+
+```{r}
+ControlParamteres <- trainControl(method = "cv",
+                                  number = 5,
+                                  savePredictions = TRUE,
+                                  classProbs = TRUE
+)
+```
+
+Let's choose the model parameters.Here we are choosing mtry of Random forest and taking three values.You can choose other model also and its parameters in the function expand.grid which will create a grid of all combinations of parameters.
+```{r}
+parameterGrid <- expand.grid(mtry=c(2,3,4))
+```
+
+method="cv" (used for crossvalidation)
+number=5 (means 5 fold crossvalidation)
+classProbs=TRUE(model will save the predictions for each class)
+
+We will put the above paramter in the model below in trControl argument
+Let's now fit the model using train function
+To know more about the train function type and run ?train in the console
+```{r}
+modelRandom <- train(Species~., 
+                  data = trainDF,
+                  method = "rf",
+                  trControl = ControlParamteres,
+                  preProcess = c('center', 'scale'),
+                  tuneGrid=parameterGrid
+)
+```
+
+
+method="rf"(means random forest.I have chosen random forest.You choose any model name here)
+preProcess=used for centering and scaling of the data.
+There are many other options available for other needs.Just hit the tab button after the comma inside the train function to read about the options available.
+
+To know which models(or methods) are available other than random forest .Just type and run.
+```{r}
+names(getModelInfo())
+```
+
+To know about the random forest model we just fitted,just type model name
+```{r}
+modelRandom
+```
+
+The tuning parameter is mtry.The accuracy metric for each mtry value is given in the table .The best model is chosen with the mtry=2.
+
+Let's check the predictions on the test data set
+
+```{r}
+predictions<-predict(modelRandom,testDF)
+```
+
+Let's check the confusion matrix 
+```{r}
+t<-table(predictions=predictions,actual=testDF$Species)
+t
+```
+
